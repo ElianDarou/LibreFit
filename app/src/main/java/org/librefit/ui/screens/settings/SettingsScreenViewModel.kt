@@ -10,7 +10,6 @@ package org.librefit.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +22,12 @@ import kotlinx.coroutines.launch
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.enums.userPreferences.DialogPreference
 import org.librefit.enums.userPreferences.Language
+import org.librefit.enums.userPreferences.RoutineUpdateMode
 import org.librefit.enums.userPreferences.ThemeMode
-import javax.inject.Inject
+import org.librefit.enums.userPreferences.UnitSystem
 
-@HiltViewModel
-class SettingsScreenViewModel @Inject constructor(
-    private val userPreferences: UserPreferencesRepository
+class SettingsScreenViewModel(
+    private val userPreferences: UserPreferencesRepository,
 ) : ViewModel() {
     val themeMode = userPreferences.themeMode
     val materialMode = userPreferences.materialMode
@@ -38,14 +37,17 @@ class SettingsScreenViewModel @Inject constructor(
     val isSupporter = userPreferences.isSupporter
     val isWorkoutHeaderSticky = userPreferences.isWorkoutHeaderSticky
     val useScrollWheelForInput = userPreferences.useScrollWheelForInput
+    val showExercisesImages = userPreferences.showExercisesImages
     val dismissScrollWheelInputAutomatically = userPreferences.dismissScrollWheelInputAutomatically
+    val unitSystem = userPreferences.unitSystem
+    val routineUpdateMode = userPreferences.routineUpdateMode
 
     fun saveThemeMode(mode: ThemeMode) {
         viewModelScope.launch { userPreferences.saveThemeMode(mode) }
     }
 
     fun saveLanguage(language: Language) {
-        viewModelScope.launch { userPreferences.saveLanguage(language.code) }
+        viewModelScope.launch { userPreferences.saveLanguage(language) }
     }
 
     fun saveMaterialMode(isEnabled: Boolean) {
@@ -74,6 +76,20 @@ class SettingsScreenViewModel @Inject constructor(
         }
     }
 
+    fun saveShowExercisesImages(display: Boolean) {
+        viewModelScope.launch {
+            userPreferences.saveShowExercisesImages(display)
+        }
+    }
+
+    fun saveUnitSystem(unitSystem: UnitSystem) {
+        viewModelScope.launch { userPreferences.saveUnitSystem(unitSystem) }
+    }
+
+    fun saveRoutineUpdateMode(routineUpdateMode: RoutineUpdateMode) {
+        viewModelScope.launch { userPreferences.saveRoutineUpdateMode(routineUpdateMode) }
+    }
+
     private val _preferences = MutableStateFlow<List<DialogPreference>?>(null)
     val preferences = _preferences.asStateFlow()
 
@@ -86,12 +102,16 @@ class SettingsScreenViewModel @Inject constructor(
     val currentPreference: StateFlow<DialogPreference?> = combine(
         preferences,
         language,
-        themeMode
-    ) { p, l, t ->
+        themeMode,
+        unitSystem,
+        routineUpdateMode
+    ) { p, l, t, u, r ->
         p?.let {
             when (p.first()) {
                 is Language -> l
                 is ThemeMode -> t
+                is UnitSystem -> u
+                is RoutineUpdateMode -> r
             }
         }
     }
@@ -106,6 +126,8 @@ class SettingsScreenViewModel @Inject constructor(
         when (newPreference) {
             is Language -> saveLanguage(newPreference)
             is ThemeMode -> saveThemeMode(newPreference)
+            is UnitSystem -> saveUnitSystem(newPreference)
+            is RoutineUpdateMode -> saveRoutineUpdateMode(newPreference)
         }
     }
 }

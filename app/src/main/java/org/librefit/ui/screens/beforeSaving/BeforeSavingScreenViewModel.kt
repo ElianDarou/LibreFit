@@ -8,11 +8,8 @@
 
 package org.librefit.ui.screens.beforeSaving
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.toRoute
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,44 +20,46 @@ import org.librefit.db.entity.Workout
 import org.librefit.db.relations.WorkoutWithExercisesAndSets
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.db.repository.WorkoutRepository
-import org.librefit.di.qualifiers.IoDispatcher
 import org.librefit.enums.SetMode
 import org.librefit.enums.WorkoutState
 import org.librefit.helpers.DataHelper
+import org.librefit.models.Weight
 import org.librefit.nav.Route
 import org.librefit.services.WorkoutServiceManager
 import org.librefit.ui.models.UiExerciseWithSets
 import org.librefit.ui.models.UiWorkout
 import org.librefit.ui.models.mappers.toEntity
 import org.librefit.ui.models.mappers.toUi
+import org.librefit.ui.models.withValuesOfCompletedSets
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.util.Locale
-import javax.inject.Inject
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
-@HiltViewModel
-class BeforeSavingScreenViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+class BeforeSavingScreenViewModel(
+    route: Route.BeforeSavingScreen,
     private val workoutRepository: WorkoutRepository,
     private val workoutServiceManager: WorkoutServiceManager,
     private val dataHelper: DataHelper,
     userPreferencesRepository: UserPreferencesRepository,
-    @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
+
     val useScrollWheelForInput = userPreferencesRepository.useScrollWheelForInput
 
     val dismissScrollWheelInputAutomatically =
         userPreferencesRepository.dismissScrollWheelInputAutomatically
 
-    private val runningWorkoutId = savedStateHandle.toRoute<Route.BeforeSavingScreen>().runningWorkoutId
+    val routineUpdateMode = userPreferencesRepository.routineUpdateMode
+
+    private val runningWorkoutId = route.runningWorkoutId
 
 
     private val _exercises = MutableStateFlow<List<UiExerciseWithSets>>(emptyList())
     val exercises = _exercises.asStateFlow()
 
-    private val _volume = MutableStateFlow("0.00")
+    private val _volume = MutableStateFlow(Weight.zero())
     val volume = _volume.asStateFlow()
 
     private val _workout = MutableStateFlow(UiWorkout())
@@ -85,7 +84,7 @@ class BeforeSavingScreenViewModel @Inject constructor(
             )
 
             _volume.update {
-                String.format(Locale.getDefault(), "%.2f", volume)
+                volume
             }
         }
     }
@@ -152,14 +151,14 @@ class BeforeSavingScreenViewModel @Inject constructor(
                 _routine.update {
                     workoutRepository.getRoutineFromRoutineID(workout.value.routineId).toUi()
                 }
-                delay(200)
+                delay(200.milliseconds)
             }
         }
     }
 
 
 
-    fun saveExercisesWithWorkout() {
+    fun saveExercisesWithWorkout(updateRoutine: Boolean) {
         workoutServiceManager.stopService()
 
         viewModelScope.launch(ioDispatcher) {
@@ -175,8 +174,11 @@ class BeforeSavingScreenViewModel @Inject constructor(
                             sets = exercise.toEntity().sets.map {
                                 // This keeps only relevant data on the actual type of set
                                 when (exercise.exercise.setMode) {
-                                    SetMode.DURATION -> it.copy(reps = 0, load = 0.0)
-                                    SetMode.BODYWEIGHT -> it.copy(elapsedTime = 0, load = 0.0)
+                                    SetMode.DURATION -> it.copy(reps = 0, load = Weight.zero())
+                                    SetMode.BODYWEIGHT -> it.copy(
+                                        elapsedTime = 0,
+                                        load = Weight.zero()
+                                    )
                                     SetMode.BODYWEIGHT_WITH_LOAD -> it.copy(elapsedTime = 0)
                                     SetMode.LOAD -> it.copy(elapsedTime = 0)
                                 }
@@ -185,6 +187,20 @@ class BeforeSavingScreenViewModel @Inject constructor(
                     }
                 )
             )
+
+            if (updateRoutine && routine.value.id != 0L) {
+                val routineWithExercisesAndSets =
+                    workoutRepository.getWorkoutWithExercisesAndSets(routine.value.id)
+
+                workoutRepository.addWorkoutWithExercisesAndSets(
+                    WorkoutWithExercisesAndSets(
+                        workout = routineWithExercisesAndSets.workout.toEntity(),
+                        exercisesWithSets = routineWithExercisesAndSets.exercisesWithSets
+                            .withValuesOfCompletedSets(exercises.value)
+                            .map { it.toEntity() }
+                    )
+                )
+            }
         }
     }
 }
