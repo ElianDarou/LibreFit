@@ -8,15 +8,16 @@
 
 package org.librefit.db.repository
 
-import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
-import org.junit.Test
 import org.librefit.db.dao.WorkoutDao
 import org.librefit.db.entity.Workout
 import org.librefit.db.relations.WorkoutWithExercisesAndSets
@@ -29,7 +30,7 @@ class WorkoutRepositoryTest {
     private lateinit var healthConnectRepository: HealthConnectRepository
     private lateinit var repository: WorkoutRepository
 
-    @Before
+    @BeforeTest
     fun setUp() {
         workoutDao = mockk()
         userPreferences = mockk()
@@ -62,7 +63,7 @@ class WorkoutRepositoryTest {
             WorkoutWithExercisesAndSets(Workout(), emptyList())
         )
 
-        assertThat(savedWorkout.captured.workout.healthConnectRecordVersion).isGreaterThan(0L)
+        assertTrue(savedWorkout.captured.workout.healthConnectRecordVersion > 0L)
     }
 
     @Test
@@ -81,7 +82,6 @@ class WorkoutRepositoryTest {
             WorkoutWithExercisesAndSets(workout, emptyList())
         )
 
-        assertThat(savedWorkout.captured.workout.healthConnectRecordVersion)
-            .isEqualTo(previousVersion + 1)
+        assertEquals(previousVersion + 1, savedWorkout.captured.workout.healthConnectRecordVersion)
     }
 }

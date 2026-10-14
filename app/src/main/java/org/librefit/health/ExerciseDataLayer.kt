@@ -16,11 +16,8 @@ import org.librefit.db.relations.ExerciseWithSets
 import org.librefit.db.relations.WorkoutWithExercisesAndSets
 import org.librefit.enums.exercise.Category
 import java.time.ZoneId
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ExerciseDataLayer @Inject constructor() {
+class ExerciseDataLayer() {
     fun toExerciseSessionRecord(
         workoutWithExercisesAndSets: WorkoutWithExercisesAndSets
     ): ExerciseSessionRecord? {

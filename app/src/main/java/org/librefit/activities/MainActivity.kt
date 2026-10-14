@@ -8,34 +8,46 @@
 
 package org.librefit.activities
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.health.HealthConnectSyncManager
 import org.librefit.nav.NavigationHost
+import org.librefit.nav.Route
+import org.librefit.nav.deepLinkKeyForAction
 import org.librefit.services.WorkoutServiceManager
 import org.librefit.ui.theme.LibreFitTheme
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    @Inject
-    lateinit var userPreferences: UserPreferencesRepository
+    private val userPreferences: UserPreferencesRepository by inject()
+    private val workoutServiceManager: WorkoutServiceManager by inject()
 
-    @Inject
-    lateinit var workoutServiceManager: WorkoutServiceManager
+    /**
+     * Deep-link key parsed once from the launch intent (cold start). Only used to seed the
+     * initial Navigation 3 back stack; `rememberNavBackStack` ignores it whenever saved state
+     * exists, so it is never re-applied after configuration changes or process death.
+     */
+    private var initialDeepLink: Route? = null
 
-    @Inject
-    lateinit var healthConnectSyncManager: HealthConnectSyncManager
+    /**
+     * Deep-link key waiting to be applied, set by [onNewIntent] while the activity is already
+     * running. Applied exactly once by [NavigationHost] and then cleared via
+     * `onPendingDeepLinkConsumed`.
+     */
+    private val pendingDeepLink = mutableStateOf<Route?>(null)
+
+    private val healthConnectSyncManager: HealthConnectSyncManager by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -48,15 +60,21 @@ class MainActivity : AppCompatActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        initialDeepLink = intent.action.deepLinkKeyForAction()
+
         setContent {
             val theme by userPreferences.themeMode.collectAsStateWithLifecycle()
             val dynamicColor by userPreferences.materialMode.collectAsStateWithLifecycle()
 
             LibreFitTheme(
                 dynamicColor = dynamicColor,
-                themeMode = theme
+                themeMode = theme,
             ) {
-                NavigationHost()
+                NavigationHost(
+                    initialDeepLink = initialDeepLink,
+                    pendingDeepLink = pendingDeepLink.value,
+                    onPendingDeepLinkConsumed = { pendingDeepLink.value = null },
+                )
             }
         }
     }
@@ -65,6 +83,11 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         // Health Connect does not notify LibreFit when another app adds new data.
         lifecycleScope.launch { healthConnectSyncManager.syncEnabledData() }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        pendingDeepLink.value = intent.action.deepLinkKeyForAction()
     }
 
     override fun onDestroy() {

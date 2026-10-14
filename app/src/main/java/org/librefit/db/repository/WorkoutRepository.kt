@@ -21,8 +21,6 @@ import org.librefit.health.HealthConnectRepository
 import org.librefit.ui.models.UiWorkoutWithExercisesAndSets
 import org.librefit.ui.models.mappers.toUi
 import java.time.Instant
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Repository class for managing workout data.
@@ -36,8 +34,7 @@ import javax.inject.Singleton
  * @property completedWorkoutsWithExercisesAndSets Refer to [WorkoutDao.getWorkoutsWithExercisesAndSetsByStateAndOrderedByCompleted]
  *
  */
-@Singleton
-class WorkoutRepository @Inject constructor(
+class WorkoutRepository(
     private val workoutDao: WorkoutDao,
     private val userPreferences: UserPreferencesRepository,
     private val healthConnectRepository: HealthConnectRepository
@@ -104,6 +101,10 @@ class WorkoutRepository @Inject constructor(
                 )
             }
         }
+    }
+
+    suspend fun updateWorkoutPositions(workouts: List<Workout>) {
+        workoutDao.updateWorkouts(workouts)
     }
 
     suspend fun deleteWorkout(workout: Workout) {

@@ -8,11 +8,8 @@
 
 package org.librefit.ui.screens.workout
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.toRoute
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.FlowPreview
@@ -35,8 +32,6 @@ import org.librefit.db.relations.WorkoutWithExercisesAndSets
 import org.librefit.db.repository.DatasetRepository
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.db.repository.WorkoutRepository
-import org.librefit.di.qualifiers.IoDispatcher
-import org.librefit.di.qualifiers.MainDispatcher
 import org.librefit.enums.PreviousPerformanceSet
 import org.librefit.enums.SetMode
 import org.librefit.enums.WorkoutState
@@ -57,22 +52,21 @@ import org.librefit.ui.models.mappers.toUi
 import org.librefit.ui.models.moveExercise
 import org.librefit.ui.models.withNormalizedExercisePositions
 import java.time.LocalDateTime
-import javax.inject.Inject
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(FlowPreview::class)
-@HiltViewModel
-class WorkoutScreenViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+class WorkoutScreenViewModel(
+    route: Route.WorkoutScreen,
     private val userPreferences: UserPreferencesRepository,
     private val workoutServiceManager: WorkoutServiceManager,
     private val workoutRepository: WorkoutRepository,
     private val datasetRepository: DatasetRepository,
     private val soundPlayer: SoundPlayer,
-    @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
-    @param:MainDispatcher private val mainDispatcher: CoroutineDispatcher
+    private val ioDispatcher: CoroutineDispatcher,
+    private val mainDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
+
     private val _idsOfSetsWithStopwatchNotStartedAtLeastOnce =
         MutableStateFlow<Set<Long>>(emptySet())
     val idsOfSetsWithStopwatchNotStartedAtLeastOnce =
@@ -131,7 +125,7 @@ class WorkoutScreenViewModel @Inject constructor(
         syncToRepository()
     }
 
-    private val workoutId = savedStateHandle.toRoute<Route.WorkoutScreen>().workoutId
+    private val workoutId = route.workoutId
 
 
     private val _workout = MutableStateFlow(UiWorkout())

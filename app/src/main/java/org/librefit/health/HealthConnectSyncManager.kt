@@ -21,12 +21,9 @@ import org.librefit.models.Weight
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlin.math.abs
 
-@Singleton
-class HealthConnectSyncManager @Inject constructor(
+class HealthConnectSyncManager(
     private val userPreferences: UserPreferencesRepository,
     private val measurementRepository: MeasurementRepository,
     private val workoutRepository: WorkoutRepository,

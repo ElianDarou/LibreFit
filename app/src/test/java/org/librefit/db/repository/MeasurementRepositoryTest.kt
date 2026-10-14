@@ -8,16 +8,17 @@
 
 package org.librefit.db.repository
 
-import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
-import org.junit.Test
 import org.librefit.db.dao.MeasurementDao
 import org.librefit.db.entity.Measurement
 import org.librefit.enums.healthConnect.HealthConnectSyncOption
@@ -30,7 +31,7 @@ class MeasurementRepositoryTest {
     private lateinit var healthConnectRepository: HealthConnectRepository
     private lateinit var repository: MeasurementRepository
 
-    @Before
+    @BeforeTest
     fun setUp() {
         measurementDao = mockk()
         userPreferences = mockk()
@@ -60,8 +61,8 @@ class MeasurementRepositoryTest {
             Measurement(bodyWeight = Weight.kilograms(80.0))
         )
 
-        assertThat(savedId).isEqualTo(42L)
-        assertThat(savedMeasurement.captured.healthConnectRecordVersion).isGreaterThan(0L)
+        assertEquals(42L, savedId)
+        assertTrue(savedMeasurement.captured.healthConnectRecordVersion > 0L)
         coVerify(exactly = 1) {
             healthConnectRepository.exportMeasurements(
                 measurements = match {
@@ -88,7 +89,6 @@ class MeasurementRepositoryTest {
 
         repository.upsertMeasurement(existing.copy(bodyWeight = Weight.kilograms(81.0)))
 
-        assertThat(savedMeasurement.captured.healthConnectRecordVersion)
-            .isEqualTo(previousVersion + 1)
+        assertEquals(previousVersion + 1, savedMeasurement.captured.healthConnectRecordVersion)
     }
 }

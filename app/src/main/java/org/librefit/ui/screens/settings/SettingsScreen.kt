@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -52,19 +53,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
+import org.koin.androidx.compose.koinViewModel
 import org.librefit.R
 import org.librefit.enums.healthConnect.HealthConnectSyncOption
 import org.librefit.enums.userPreferences.DialogPreference
 import org.librefit.enums.userPreferences.Language
+import org.librefit.enums.userPreferences.RoutineUpdateMode
 import org.librefit.enums.userPreferences.ThemeMode
 import org.librefit.enums.userPreferences.UnitSystem
-import org.librefit.nav.Route
 import org.librefit.ui.components.HeadlineText
 import org.librefit.ui.components.LibreFitLazyColumn
 import org.librefit.ui.components.LibreFitScaffold
@@ -78,9 +77,13 @@ import kotlin.random.Random
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun SettingsScreen(
-    navController: NavHostController,
-    viewModel: SettingsScreenViewModel = hiltViewModel()
+    onNavigateBack: () -> Unit,
+    onNavigateToSupportScreen: () -> Unit,
+    viewModel: SettingsScreenViewModel = koinViewModel()
 ) {
+    val context = LocalContext.current
+    val routineUpdateMode by viewModel.routineUpdateMode.collectAsStateWithLifecycle()
+
     val unitSystem by viewModel.unitSystem.collectAsStateWithLifecycle()
 
     val selectedLanguage by viewModel.language.collectAsStateWithLifecycle()
@@ -174,7 +177,8 @@ fun SettingsScreen(
     }
 
     SettingsScreenContent(
-        navController = navController,
+        onNavigateBack = onNavigateBack,
+        onNavigateToSupportScreen = onNavigateToSupportScreen,
         selectedTheme = selectedTheme,
         materialModeOn = materialModeOn,
         selectedLanguage = selectedLanguage,
@@ -187,6 +191,7 @@ fun SettingsScreen(
         isWorkoutHeaderSticky = isWorkoutHeaderSticky,
         dismissScrollWheelInputAutomatically = dismissScrollWheelInputAutomatically,
         unitSystem = unitSystem,
+        routineUpdateMode = routineUpdateMode,
         updatePreferences = viewModel::updatePreferences,
         onMaterialModeChange = viewModel::saveMaterialMode,
         onKeepWorkoutScreenOnChange = viewModel::saveWorkoutScreenOn,
@@ -221,7 +226,7 @@ fun SettingsScreen(
             }
         },
         onManageHealthConnectPermissions = {
-            navController.context.startActivity(
+            context.startActivity(
                 Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
             )
         },
@@ -236,7 +241,8 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsScreenContent(
-    navController: NavHostController,
+    onNavigateBack: () -> Unit,
+    onNavigateToSupportScreen: () -> Unit,
     selectedTheme: ThemeMode,
     materialModeOn: Boolean,
     selectedLanguage: Language,
@@ -249,6 +255,7 @@ private fun SettingsScreenContent(
     showExercisesImages: Boolean?,
     dismissScrollWheelInputAutomatically: Boolean,
     unitSystem: UnitSystem,
+    routineUpdateMode: RoutineUpdateMode,
     updatePreferences: (List<DialogPreference>) -> Unit,
     onMaterialModeChange: (Boolean) -> Unit,
     onKeepWorkoutScreenOnChange: (Boolean) -> Unit,
@@ -264,9 +271,9 @@ private fun SettingsScreenContent(
 ) {
     LibreFitScaffold(
         title = AnnotatedString(stringResource(id = R.string.settings)),
-        navigateBack = navController::navigateUp
+        navigateBack = onNavigateBack
     ) { innerPadding ->
-        LibreFitLazyColumn(innerPadding) {
+        LibreFitLazyColumn(innerPadding = innerPadding) {
             item { HeadlineText(text = stringResource(id = R.string.appearance)) }
 
             item {
@@ -287,9 +294,7 @@ private fun SettingsScreenContent(
                             if (isSupporter) {
                                 onMaterialModeChange(!materialModeOn)
                             } else {
-                                navController.navigate(Route.SupportScreen(true)) {
-                                    launchSingleTop = true
-                                }
+                                onNavigateToSupportScreen()
                             }
                         },
                         icon = painterResource(R.drawable.ic_material),
@@ -373,9 +378,20 @@ private fun SettingsScreenContent(
                             showConfirmDialogShowExerciseImages()
                         }
                     },
-                    icon = painterResource(if (showExercisesImages == true) R.drawable.ic_image else R.drawable.ic_hide_image),
+                    icon = painterResource(R.drawable.ic_image),
                     settingName = stringResource(R.string.show_images),
                     settingDesc = stringResource(if (showExercisesImages == true) R.string.show_images_desc else R.string.hide_images_desc)
+                )
+            }
+
+            item {
+                SettingItem(
+                    onClick = { updatePreferences(RoutineUpdateMode.entries) },
+                    icon = painterResource(R.drawable.ic_refresh),
+                    settingName = stringResource(id = R.string.update_routine_after_workout),
+                    settingDesc = stringResource(
+                        id = Formatter.preferenceToStringId(routineUpdateMode)
+                    )
                 )
             }
 
@@ -589,13 +605,13 @@ private fun SettingItem(
             if (showIconInOriginalColors) {
                 Image(
                     painter = painterResource(R.drawable.health_connect_logo),
-                    contentDescription = settingName,
+                    contentDescription = null,
                     modifier = Modifier.padding(start = 5.dp, end = 20.dp).size(28.dp)
                 )
             } else {
                 Icon(
                     painter = icon,
-                    contentDescription = settingName,
+                    contentDescription = null,
                     modifier = Modifier.padding(start = 5.dp, end = 20.dp)
                 )
             }
@@ -637,7 +653,8 @@ fun SettingsScreenPreview() {
 
     LibreFitTheme(dynamicColor = materialModeOn, themeMode = theme) {
         SettingsScreenContent(
-            navController = rememberNavController(),
+            onNavigateBack = {},
+            onNavigateToSupportScreen = {},
             selectedTheme = theme,
             materialModeOn = materialModeOn,
             selectedLanguage = Language.SYSTEM,
@@ -651,6 +668,7 @@ fun SettingsScreenPreview() {
             showExercisesImages = displayExercisesImages,
             dismissScrollWheelInputAutomatically = dismissScrollWheelInputAutomatically,
             unitSystem = UnitSystem.entries.random(),
+            routineUpdateMode = RoutineUpdateMode.entries.random(),
             onMaterialModeChange = { materialModeOn = it },
             onKeepWorkoutScreenOnChange = { keepWorkoutScreenOn = it },
             onRestTimerSoundOnChange = { restTimerSoundOn = it },

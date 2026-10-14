@@ -21,7 +21,6 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.units.Mass
 import androidx.health.connect.client.units.Percentage
-import dagger.hilt.android.qualifiers.ApplicationContext
 import org.librefit.db.entity.Measurement
 import org.librefit.db.entity.Workout
 import org.librefit.db.relations.WorkoutWithExercisesAndSets
@@ -31,15 +30,12 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlin.reflect.KClass
 
-@Singleton
-class HealthConnectRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+class HealthConnectRepository(
+    private val context: Context,
     private val exerciseDataLayer: ExerciseDataLayer
 ) {
     companion object {

@@ -9,7 +9,6 @@
 package org.librefit.ui.screens.settings
 
 import app.cash.turbine.test
-import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -17,23 +16,28 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
 import org.librefit.MainDispatcherRule
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.enums.healthConnect.HealthConnectSyncOption
 import org.librefit.enums.userPreferences.Language
+import org.librefit.enums.userPreferences.RoutineUpdateMode
 import org.librefit.enums.userPreferences.ThemeMode
 import org.librefit.enums.userPreferences.UnitSystem
 import org.librefit.health.HealthConnectRepository
 import org.librefit.health.HealthConnectSyncManager
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsScreenViewModelTest {
     // MainDispatcherRule to control coroutine execution
-    @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
+    private val mainDispatcherRule = MainDispatcherRule()
 
     // The mock repository
     private lateinit var userPreferencesRepository: UserPreferencesRepository
@@ -57,8 +61,19 @@ class SettingsScreenViewModelTest {
     private lateinit var healthConnectOptions: Map<HealthConnectSyncOption, MutableStateFlow<Boolean>>
     private lateinit var showExercisesImages: MutableStateFlow<Boolean?>
     private lateinit var unitSystem: MutableStateFlow<UnitSystem>
+    private lateinit var routineUpdateMode: MutableStateFlow<RoutineUpdateMode>
 
-    @Before
+    @BeforeTest
+    fun setUpMainDispatcher() {
+        mainDispatcherRule.setUp()
+    }
+
+    @AfterTest
+    fun tearDownMainDispatcher() {
+        mainDispatcherRule.tearDown()
+    }
+
+    @BeforeTest
     fun setUp() {
         // Arrange: Create a mock for the repository
         userPreferencesRepository = mockk()
@@ -79,6 +94,7 @@ class SettingsScreenViewModelTest {
         }
         showExercisesImages = MutableStateFlow(null)
         unitSystem = MutableStateFlow(UnitSystem.METRIC)
+        routineUpdateMode = MutableStateFlow(RoutineUpdateMode.NEVER)
 
         // Arrange: Tell the mock what to return when these are accessed
         every { userPreferencesRepository.language } returns language
@@ -109,6 +125,7 @@ class SettingsScreenViewModelTest {
         coEvery { healthConnectSyncManager.syncEnabledData(any()) } returns 0
         every { userPreferencesRepository.showExercisesImages } returns showExercisesImages
         every { userPreferencesRepository.unitSystem } returns unitSystem
+        every { userPreferencesRepository.routineUpdateMode } returns routineUpdateMode
 
         every { userPreferencesRepository.saveLanguage(any()) } answers {
             language.value = firstArg()
@@ -158,42 +175,42 @@ class SettingsScreenViewModelTest {
 
     @Test
     fun `initial state - language follows system`() = runTest {
-        assertThat(viewModel.language.value).isEqualTo(Language.SYSTEM)
+        assertEquals(Language.SYSTEM, viewModel.language.value)
     }
 
     @Test
     fun `initial state - theme follows system`() = runTest {
-        assertThat(viewModel.themeMode.value).isEqualTo(ThemeMode.SYSTEM)
+        assertEquals(ThemeMode.SYSTEM, viewModel.themeMode.value)
     }
 
     @Test
     fun `initial state - keep screen is on`() = runTest {
-        assertThat(viewModel.keepScreenOn.value).isTrue()
+        assertTrue(viewModel.keepScreenOn.value)
     }
 
     @Test
     fun `initial state - material mode is off`() = runTest {
-        assertThat(viewModel.materialMode.value).isFalse()
+        assertFalse(viewModel.materialMode.value)
     }
 
     @Test
     fun `initial state - rest timer is is on`() = runTest {
-        assertThat(viewModel.restTimerSoundOn.value).isTrue()
+        assertTrue(viewModel.restTimerSoundOn.value)
     }
 
     @Test
     fun `initial state - is supporter is is false`() = runTest {
-        assertThat(viewModel.isSupporter.value).isFalse()
+        assertFalse(viewModel.isSupporter.value)
     }
 
     @Test
     fun `initial state - dismiss scroll wheel automatically is off`() = runTest {
-        assertThat(viewModel.dismissScrollWheelInputAutomatically.value).isFalse()
+        assertFalse(viewModel.dismissScrollWheelInputAutomatically.value)
     }
 
     @Test
     fun `initial state - show images is null`() = runTest {
-        assertThat(viewModel.showExercisesImages.value).isNull()
+        assertNull(viewModel.showExercisesImages.value)
     }
 
     @Test
@@ -201,9 +218,9 @@ class SettingsScreenViewModelTest {
         val expected = true
 
         viewModel.showExercisesImages.test {
-            assertThat(awaitItem()).isNull()
+            assertNull(awaitItem())
             viewModel.saveShowExercisesImages(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -211,14 +228,14 @@ class SettingsScreenViewModelTest {
     fun `when updating preferences - preferences must match the update input`() = runTest {
         viewModel.preferences.test {
             // Initial emission
-            assertThat(awaitItem()).isNull()
+            assertNull(awaitItem())
 
             // Act: update preferences
             val newPreferences = Language.entries
             viewModel.updatePreferences(newPreferences)
 
             // Assert: preferences has the correct value
-            assertThat(awaitItem()).isEqualTo(newPreferences)
+            assertEquals(newPreferences, awaitItem())
         }
     }
 
@@ -226,7 +243,7 @@ class SettingsScreenViewModelTest {
     fun `when updating preferences - current preference must also update`() = runTest {
         viewModel.currentPreference.test {
             // Initial emission
-            assertThat(awaitItem()).isNull()
+            assertNull(awaitItem())
 
             // Act: update preferences, it triggers current preference update
             val newPreferences = Language.entries
@@ -234,8 +251,8 @@ class SettingsScreenViewModelTest {
 
             // Assert: current preference reflects the correct preference and its value
             val value = awaitItem()
-            assertThat(value).isInstanceOf(Language::class.java)
-            assertThat(value).isEqualTo(Language.SYSTEM)
+            assertIs<Language>(value)
+            assertEquals(Language.SYSTEM, value)
         }
     }
 
@@ -247,10 +264,10 @@ class SettingsScreenViewModelTest {
 
             viewModel.currentPreference.test {
                 // Initial emission
-                assertThat(awaitItem()).isNull()
+                assertNull(awaitItem())
                 viewModel.saveLanguage(expected)
                 viewModel.updatePreferences(Language.entries)
-                assertThat(awaitItem()).isEqualTo(expected)
+                assertEquals(expected, awaitItem())
             }
         }
 
@@ -259,7 +276,7 @@ class SettingsScreenViewModelTest {
         runTest {
             viewModel.currentPreference.test {
                 // Initial emission
-                assertThat(awaitItem()).isNull()
+                assertNull(awaitItem())
                 viewModel.saveLanguage(Language.ENGLISH)
                 expectNoEvents()
             }
@@ -272,9 +289,9 @@ class SettingsScreenViewModelTest {
 
         viewModel.language.test {
             // Initial emission
-            assertThat(awaitItem()).isEqualTo(Language.SYSTEM)
+            assertEquals(Language.SYSTEM, awaitItem())
             viewModel.saveLanguage(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -285,9 +302,9 @@ class SettingsScreenViewModelTest {
 
         viewModel.themeMode.test {
             // Initial emission
-            assertThat(awaitItem()).isEqualTo(ThemeMode.SYSTEM)
+            assertEquals(ThemeMode.SYSTEM, awaitItem())
             viewModel.saveThemeMode(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -298,9 +315,9 @@ class SettingsScreenViewModelTest {
 
         viewModel.materialMode.test {
             // Initial emission
-            assertThat(awaitItem()).isEqualTo(false)
+            assertEquals(false, awaitItem())
             viewModel.saveMaterialMode(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -311,9 +328,9 @@ class SettingsScreenViewModelTest {
 
         viewModel.keepScreenOn.test {
             // Initial emission
-            assertThat(awaitItem()).isEqualTo(true)
+            assertEquals(true, awaitItem())
             viewModel.saveWorkoutScreenOn(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -324,9 +341,9 @@ class SettingsScreenViewModelTest {
 
         viewModel.restTimerSoundOn.test {
             // Initial emission
-            assertThat(awaitItem()).isEqualTo(true)
+            assertEquals(true, awaitItem())
             viewModel.saveRestTimerSoundOn(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -335,9 +352,9 @@ class SettingsScreenViewModelTest {
         val expected = false
 
         viewModel.isWorkoutHeaderSticky.test {
-            assertThat(awaitItem()).isEqualTo(true)
+            assertEquals(true, awaitItem())
             viewModel.saveIsWorkoutHeaderSticky(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -346,9 +363,9 @@ class SettingsScreenViewModelTest {
         val expected = false
 
         viewModel.useScrollWheelForInput.test {
-            assertThat(awaitItem()).isEqualTo(true)
+            assertEquals(true, awaitItem())
             viewModel.saveUseScrollWheelForInput(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -357,9 +374,9 @@ class SettingsScreenViewModelTest {
         val expected = true
 
         viewModel.dismissScrollWheelInputAutomatically.test {
-            assertThat(awaitItem()).isFalse()
+            assertFalse(awaitItem())
             viewModel.saveDismissScrollWheelInputAutomatically(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -371,7 +388,7 @@ class SettingsScreenViewModelTest {
 
         viewModel.healthConnectState.test {
             val state = awaitItem()
-            assertThat(state.isEnabled).isFalse()
+            assertFalse(state.isEnabled)
         }
     }
 
@@ -379,7 +396,7 @@ class SettingsScreenViewModelTest {
     fun `health connect reports unavailable`() = runTest {
         advanceUntilIdle()
 
-        assertThat(viewModel.healthConnectState.value.isAvailable).isFalse()
+        assertFalse(viewModel.healthConnectState.value.isAvailable)
     }
 
     @Test
@@ -396,7 +413,7 @@ class SettingsScreenViewModelTest {
             while (!state.isAvailable) {
                 state = awaitItem()
             }
-            assertThat(state.grantedPermissions).containsExactly(permission)
+            assertEquals(setOf(permission), state.grantedPermissions)
         }
     }
 
@@ -416,8 +433,8 @@ class SettingsScreenViewModelTest {
             while (option !in state.enabledOptions) {
                 state = awaitItem()
             }
-            assertThat(state.isEnabled).isTrue()
-            assertThat(state.enabledOptions).containsExactly(option)
+            assertTrue(state.isEnabled)
+            assertEquals(setOf(option), state.enabledOptions)
         }
     }
 
@@ -434,8 +451,8 @@ class SettingsScreenViewModelTest {
         viewModel.updateHealthConnectPermissions(null, setOf(permission))
         advanceUntilIdle()
 
-        assertThat(healthConnectEnabled.value).isTrue()
-        assertThat(healthConnectOptions.values.any { it.value }).isFalse()
+        assertTrue(healthConnectEnabled.value)
+        assertFalse(healthConnectOptions.values.any { it.value })
     }
 
     @Test
@@ -443,9 +460,9 @@ class SettingsScreenViewModelTest {
         val expected = Language.ENGLISH
 
         viewModel.language.test {
-            assertThat(awaitItem()).isEqualTo(Language.SYSTEM)
+            assertEquals(Language.SYSTEM, awaitItem())
             viewModel.updateDialogPreference(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 
@@ -454,9 +471,9 @@ class SettingsScreenViewModelTest {
         val expected = ThemeMode.DARK
 
         viewModel.themeMode.test {
-            assertThat(awaitItem()).isEqualTo(ThemeMode.SYSTEM)
+            assertEquals(ThemeMode.SYSTEM, awaitItem())
             viewModel.updateDialogPreference(expected)
-            assertThat(awaitItem()).isEqualTo(expected)
+            assertEquals(expected, awaitItem())
         }
     }
 }

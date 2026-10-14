@@ -16,9 +16,9 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +39,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CheckableDropdownMenuItem
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuGroup
 import androidx.compose.material3.DropdownMenuItem
@@ -71,7 +72,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,8 +81,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -222,14 +220,17 @@ fun SharedTransitionScope.ExerciseCard(
 ) {
     val unit = autoUnitSuffix()
 
+    val elevation by animateDpAsState(
+        targetValue = if (isDragging) 10.dp else 0.dp,
+        label = "drag_elevation"
+    )
+
     var showMenu by rememberSaveable { mutableStateOf(false) }
     val shape = MaterialTheme.shapes.extraLarge
     ElevatedCard(
-        modifier = modifier.then(
-            if (isDragging) Modifier.shadow(
-                10.dp,
-                shape = shape
-            ) else Modifier
+        modifier = modifier.shadow(
+            elevation = elevation,
+            shape = shape
         ),
         shape = shape
     ) {
@@ -364,9 +365,29 @@ fun SharedTransitionScope.ExerciseCard(
 
                     //Rest timer slider
                     Column {
+                        // Hoist the slider state as single source of truth
+                        val sliderState = rememberSliderState(
+                            value = exerciseWithSets.exercise.restTime.toFloat(),
+                            trackRange = 0f..300f,
+                            steps = 19 // 20 intervals -> exact multiples of 15 natively
+                        )
+
+                        // Keep state synced if restTime is modified externally (e.g., from the ViewModel)
+                        LaunchedEffect(exerciseWithSets.exercise.restTime) {
+                            if (!sliderState.isDragging) {
+                                sliderState.value = exerciseWithSets.exercise.restTime.toFloat()
+                            }
+                        }
+
                         var showSlider by rememberSaveable { mutableStateOf(false) }
-                        var restTime by remember { mutableIntStateOf(exerciseWithSets.exercise.restTime) }
                         val haptic = LocalHapticFeedback.current
+
+                        // Manually trigger haptics when the discrete step changes during a drag
+                        LaunchedEffect(sliderState.value) {
+                            if (sliderState.isDragging) {
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceAround,
@@ -386,8 +407,9 @@ fun SharedTransitionScope.ExerciseCard(
                                     )
                                 }
                                 Text(
-                                    stringResource(R.string.rest_time) + ": " + restTime
-                                            + " " + stringResource(R.string.seconds).replaceFirstChar { it.lowercase() })
+                                    stringResource(R.string.rest_time) + ": " + sliderState.value.roundToInt()
+                                            + " " + stringResource(R.string.seconds).replaceFirstChar { it.lowercase() }
+                                )
                             }
                             IconToggleButton(
                                 checked = showSlider,
@@ -404,20 +426,11 @@ fun SharedTransitionScope.ExerciseCard(
                         }
                         AnimatedVisibility(visible = showSlider) {
                             Slider(
-                                state = rememberSliderState(
-                                    value = restTime.toFloat(),
-                                    trackRange = 0f..300f,
-                                    // 19 steps means values multiple of 5
-                                    steps = 19
-                                ),
-                                onValueChange = {
-                                    // By dividing first and then multiplying by 5, it rounds to the closest number multiple of 5
-                                    restTime = (it / 5).roundToInt() * 5
-                                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                                },
+                                state = sliderState,
                                 onValueChangeFinished = {
+                                    // Only hit the ViewModel when the user finishes dragging/clicking
                                     updateExerciseRestTime(
-                                        restTime,
+                                        sliderState.value.roundToInt(),
                                         exerciseWithSets.exercise.id
                                     )
                                 }
@@ -453,7 +466,6 @@ fun SharedTransitionScope.ExerciseCard(
 
                         var expanded by remember { mutableStateOf(false) }
 
-                        val focusRequester = remember { FocusRequester() }
 
                         // Type of set selector
                         ExposedDropdownMenuBox(
@@ -462,12 +474,6 @@ fun SharedTransitionScope.ExerciseCard(
                             modifier = Modifier
                                 .padding(start = 10.dp, end = 10.dp)
                                 .weight(0.5f)
-                                .clickable {
-                                    expanded = !expanded
-                                    focusRequester.requestFocus()
-                                }
-                                .focusRequester(focusRequester)
-                                .focusable()
                         ) {
                             OutlinedTextField(
                                 shape = MaterialTheme.shapes.large,
@@ -483,33 +489,52 @@ fun SharedTransitionScope.ExerciseCard(
                             )
                             ExposedDropdownMenu(
                                 expanded = expanded,
-                                onDismissRequest = { expanded = false }
+                                onDismissRequest = { expanded = false },
+                                // Allow DropdownMenuGroup to control styling, shape, and elevation
+                                containerColor = Color.Transparent,
+                                shadowElevation = 0.dp,
+                                border = null
                             ) {
-                                SetMode.entries.forEachIndexed { _, mode ->
-                                    DropdownMenuItem(
-                                        onClick = {
-                                            updateExerciseSetMode(mode, exerciseWithSets.exercise.id)
-                                            expanded = false
-                                        },
-                                        text = {
-                                            Text(
-                                                text = stringResource(Formatter.setModeToStringId(mode))
-                                            )
-                                        },
-                                        trailingIcon = if (exerciseWithSets.exercise.setMode == mode) {
-                                            {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.ic_check),
-                                                    contentDescription = stringResource(R.string.checkbox)
+                                // Wrap items inside Expressive DropdownMenuGroup
+                                DropdownMenuGroup(
+                                    shapes = MenuDefaults.groupShape(0, 1)
+                                ) {
+                                    val itemCount = SetMode.entries.size
+
+                                    SetMode.entries.forEachIndexed { index, mode ->
+                                        val isSelected = mode == exerciseWithSets.exercise.setMode
+
+                                        CheckableDropdownMenuItem(
+                                            checked = isSelected,
+                                            onCheckedChange = {
+                                                updateExerciseSetMode(
+                                                    mode,
+                                                    exerciseWithSets.exercise.id
                                                 )
-                                            }
-                                        } else null,
-                                        modifier = Modifier.background(
-                                            if (exerciseWithSets.exercise.setMode == mode) MaterialTheme.colorScheme.inversePrimary.copy(
-                                                0.3f
-                                            ) else Color.Unspecified
+                                                expanded = false
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = stringResource(
+                                                        Formatter.setModeToStringId(
+                                                            mode
+                                                        )
+                                                    )
+                                                )
+                                            },
+                                            trailingContent = if (exerciseWithSets.exercise.setMode == mode) {
+                                                {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.ic_check),
+                                                        contentDescription = stringResource(R.string.checkbox)
+                                                    )
+                                                }
+                                            } else null,
+                                            // Expressive rounded shapes per item position in group
+                                            shapes = MenuDefaults.itemShape(index, itemCount),
                                         )
-                                    )
+                                    }
+
                                 }
                             }
                         }
@@ -771,21 +796,19 @@ private fun Set(
         state = swipeToDismissBoxState,
         onDismiss = { deleteSet(set.id) },
         backgroundContent = {
+            val cornerShape = remember(i, lastIndex) {
+                RoundedCornerShape(
+                    topStart = CornerSize(if (i == 0) 50 else 0),
+                    topEnd = CornerSize(if (i == 0) 50 else 0),
+                    bottomEnd = CornerSize(if (i == lastIndex) 50 else 0),
+                    bottomStart = CornerSize(if (i == lastIndex) 50 else 0),
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = CornerSize(if (i == 0) 45 else 0),
-                            topEnd = CornerSize(if (i == 0) 45 else 0),
-                            bottomEnd = CornerSize(
-                                if (i == lastIndex) 45 else 0
-                            ),
-                            bottomStart = CornerSize(
-                                if (i == lastIndex) 45 else 0
-                            ),
-                        )
-                    )
+                    .clip(cornerShape)
                     .background(
                         when (swipeToDismissBoxState.dismissDirection) {
                             SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.errorContainer

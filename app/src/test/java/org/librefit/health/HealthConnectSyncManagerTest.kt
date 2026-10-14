@@ -8,25 +8,25 @@
 
 package org.librefit.health
 
-import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import java.time.LocalDateTime
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Before
-import org.junit.Test
 import org.librefit.db.entity.Measurement
 import org.librefit.db.repository.MeasurementRepository
 import org.librefit.db.repository.UserPreferencesRepository
 import org.librefit.db.repository.WorkoutRepository
 import org.librefit.enums.healthConnect.HealthConnectSyncOption
 import org.librefit.models.Weight
-import java.time.LocalDateTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HealthConnectSyncManagerTest {
@@ -40,7 +40,7 @@ class HealthConnectSyncManagerTest {
     private lateinit var measurements: MutableStateFlow<List<Measurement>>
     private lateinit var options: Map<HealthConnectSyncOption, MutableStateFlow<Boolean>>
 
-    @Before
+    @BeforeTest
     fun setUp() {
         userPreferences = mockk()
         measurementRepository = mockk()
@@ -164,7 +164,7 @@ class HealthConnectSyncManagerTest {
 
         manager.syncEnabledData()
 
-        assertThat(options.getValue(HealthConnectSyncOption.WEIGHT_READ).value).isFalse()
+        assertFalse(options.getValue(HealthConnectSyncOption.WEIGHT_READ).value)
         coVerify(exactly = 0) {
             healthConnectRepository.readMeasurements(setOf(HealthConnectSyncOption.WEIGHT_READ))
         }

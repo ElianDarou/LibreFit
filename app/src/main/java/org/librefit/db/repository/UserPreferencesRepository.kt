@@ -31,16 +31,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
-import org.librefit.di.qualifiers.ApplicationScope
 import org.librefit.enums.userPreferences.Language
+import org.librefit.enums.userPreferences.RoutineUpdateMode
 import org.librefit.enums.userPreferences.ThemeMode
 import org.librefit.enums.userPreferences.UnitSystem
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import org.librefit.util.configurationChanges
 import java.util.Locale
-import javax.inject.Inject
-import javax.inject.Singleton
 
 private val THEME_MODE_KEY = intPreferencesKey("theme_mode")
 private val MATERIAL_MODE_KEY = booleanPreferencesKey("material_mode")
@@ -64,6 +62,7 @@ private const val IGNORED_RECORD_DAYS = 30L
 private val SHOW_EXERCISES_IMAGES_KEY = booleanPreferencesKey("show_exercises_images_key")
 private val UNIT_SYSTEM_KEY = stringPreferencesKey("unit_system")
 private val DEFAULT_BAR_WEIGHT_KEY = doublePreferencesKey("default_bar_weight")
+private val ROUTINE_UPDATE_MODE_KEY = stringPreferencesKey("routine_update_mode")
 /**
  * Central repository managing application-level preferences, including theme, unit systems, and language.
  *
@@ -85,11 +84,10 @@ private val DEFAULT_BAR_WEIGHT_KEY = doublePreferencesKey("default_bar_weight")
  * @see <a href="https://developer.android.com/guide/topics/resources/app-languages">Per-app languages in system settings</a>
  * @see <a href="https://developer.android.com/reference/androidx/appcompat/app/AppCompatDelegate">AppCompatDelegate</a>
  */
-@Singleton
-class UserPreferencesRepository @Inject constructor(
+class UserPreferencesRepository(
     private val dataStore: DataStore<Preferences>,
-    @param:ApplicationScope private val applicationScope: CoroutineScope,
-    application: Application
+    private val applicationScope: CoroutineScope,
+    application: Application,
 ) {
     private val healthConnectSyncStates = mutableMapOf<String, StateFlow<Boolean>>()
 
@@ -262,6 +260,18 @@ class UserPreferencesRepository @Inject constructor(
             initialValue = null
         )
 
+    val routineUpdateMode: StateFlow<RoutineUpdateMode> = dataStore.data
+        .map { preferences ->
+            runCatching {
+                RoutineUpdateMode.valueOf(preferences[ROUTINE_UPDATE_MODE_KEY]!!)
+            }.getOrDefault(RoutineUpdateMode.NEVER)
+        }
+        .stateIn(
+            scope = applicationScope,
+            started = SharingStarted.Eagerly,
+            initialValue = RoutineUpdateMode.NEVER
+        )
+
 
     private fun resolveDefaultUnitSystem(): UnitSystem {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -424,5 +434,9 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun saveDefaultBarWeight(value: Double) {
         dataStore.edit { preferences -> preferences[DEFAULT_BAR_WEIGHT_KEY] = value }
+    }
+
+    suspend fun saveRoutineUpdateMode(mode: RoutineUpdateMode) {
+        dataStore.edit { preferences -> preferences[ROUTINE_UPDATE_MODE_KEY] = mode.name }
     }
 }

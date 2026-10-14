@@ -15,8 +15,6 @@ import org.librefit.enums.healthConnect.HealthConnectSyncOption
 import org.librefit.health.HealthConnectRepository
 import java.time.Instant
 import java.time.LocalDateTime
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Repository class for managing measurements data.
@@ -28,8 +26,7 @@ import javax.inject.Singleton
  * @param measurementDao The [MeasurementDao] instance used to access measurements data from the database.
  *
  */
-@Singleton
-class MeasurementRepository @Inject constructor(
+class MeasurementRepository(
     private val measurementDao: MeasurementDao,
     private val userPreferences: UserPreferencesRepository,
     private val healthConnectRepository: HealthConnectRepository

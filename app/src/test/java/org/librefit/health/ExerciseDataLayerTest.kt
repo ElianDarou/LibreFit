@@ -9,10 +9,12 @@
 package org.librefit.health
 
 import androidx.health.connect.client.records.ExerciseSegment
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
+import java.time.LocalDateTime
+import java.time.ZoneId
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import org.librefit.db.entity.Exercise
 import org.librefit.db.entity.ExerciseDC
 import org.librefit.db.entity.Set
@@ -20,8 +22,6 @@ import org.librefit.db.entity.Workout
 import org.librefit.db.relations.ExerciseWithSets
 import org.librefit.db.relations.WorkoutWithExercisesAndSets
 import org.librefit.enums.healthConnect.HealthConnectSegmentType
-import java.time.LocalDateTime
-import java.time.ZoneId
 
 class ExerciseDataLayerTest {
     private val dataLayer = ExerciseDataLayer()
